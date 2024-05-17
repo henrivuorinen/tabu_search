@@ -1,233 +1,119 @@
-import numpy as np
+from typing import List, Tuple
 import random
+import time
 
-# Constants
-Q = 11  # Field size
-N_POINTS = Q ** 2 + Q + 1  # Number of points in PG(2, 11)
-N_LINES = N_POINTS + Q + 1  # Number of lines in PG(2, 11)
+def generate_PG_matrix(q: int) -> Tuple[List[Tuple[int, int, int]], List[List[Tuple[int, int, int]]]]:
+    points = [(x, y, 1) for x in range(q) for y in range(q)]
+    points.extend([(x, 1, 0) for x in range(q)])
+    points.append((1, 0, 0))
 
-
-# Generate PG(2, q) matrix
-def generate_PG_matrix(q):
-    """
-    Generate points and lines of PG(2, q) projective geometry space.
-
-    Args:
-        q (int): Field size.
-
-    Returns:
-        tuple: Tuple containing lists of points and lines.
-    """
-    points = []
-    for x in range(q):
-        for y in range(q):
-            points.append((x, y))
     lines = []
-    for point in points:
-        x, y = point
-        for i in range(q):
-            lines.append([(x, (i - x) % q), ((i, y), point)])
+    for a in range(q):
+        for b in range(q):
+            if a == 0 and b == 0:
+                continue
+            for c in range(q):
+                line = [point for point in points if (a * point[0] + b * point[1] + c * point[2]) % q == 0]
+                lines.append(line)
+
+    print(f"Generated {len(points)} points and {len(lines)} lines.")
     return points, lines
 
+def score_blocking_set(blocking_set: List[Tuple[int, int, int]], lines: List[List[Tuple[int, int, int]]]) -> int:
+    return sum(1 for line in lines if any(point in blocking_set for point in line))
 
-# Check if a set of points forms a minimal blocking set
-def is_blocking_set(points, lines):
-    """
-    Check if a set of points forms a minimal blocking set.
+def uncovered_lines_count(blocking_set: List[Tuple[int, int, int]], lines: List[List[Tuple[int, int, int]]]) -> int:
+    blocking_set_set = set(blocking_set)
+    return sum(1 for line in lines if not any(point in blocking_set_set for point in line))
 
-    Args:
-        points (list): List of points.
-        lines (list): List of lines.
+def is_valid_blocking_set(blocking_set: List[Tuple[int, int, int]], lines: List[List[Tuple[int, int, int]]]) -> bool:
+    blocking_set_set = set(blocking_set)
+    return all(any(point in blocking_set_set for point in line) for line in lines)
 
-    Returns:
-        bool: True if the set of points forms a minimal blocking set, False otherwise.
-    """
-    for line in lines:
-        intersection = [point for point in line if point in points]
-        if len(intersection) == 0:
-            return False
-    return True
+def generate_initial_solution(points: List[Tuple[int, int, int]], lines: List[List[Tuple[int, int, int]]], target_size: int) -> List[Tuple[int, int, int]]:
+    potential_points = sorted(points, key=lambda p: -sum(p in line for line in lines))
+    initial_solution = potential_points[:target_size]
+    print(f"Generated initial solution of size {target_size}.")
+    return initial_solution
 
-def is_affine_blocking_set(points, q):
-    """
-    Check if a set of points forms an affine blocking set.
+def generate_neighborhood(solution: List[Tuple[int, int, int]], points: List[Tuple[int, int, int]], lines: List[List[Tuple[int, int, int]]], target_size: int, sample_size: int) -> List[List[Tuple[int, int, int]]]:
+    neighborhood = []
+    solution_set = set(solution)
+    for _ in range(sample_size):
+        new_solution = solution[:]
+        num_changes = random.randint(1, 3)
+        for _ in range(num_changes):
+            point_to_remove = random.choice(new_solution)
+            point_to_add = random.choice([p for p in points if p not in new_solution])
+            new_solution.remove(point_to_remove)
+            new_solution.append(point_to_add)
+        neighborhood.append(new_solution)
+    neighborhood.sort(key=lambda sol: uncovered_lines_count(sol, lines))
+    print(f"Generated neighborhood of size {sample_size}.")
+    return neighborhood
 
-    Args:
-        points (list): List of points.
-        q (int): Field size.
+def tabu_search_random_start(points: List[Tuple[int, int, int]], lines: List[List[Tuple[int, int, int]]], target_size: int, tabu_tenure: int = 10, max_iterations: int = 1000) -> List[Tuple[int, int, int]]:
+    current_solution = generate_initial_solution(points, lines, target_size)
+    best_solution = current_solution[:]
+    best_score = uncovered_lines_count(best_solution, lines)
+    tabu_list = []
 
-    Returns:
-        bool: True if the set of points forms an affine blocking set, False otherwise.
-    """
-    for x in range(q):
-        for y in range(q):
-            if (x, y) not in points and ((x, y), (x, (x - y) % q)) not in points:
-                return False
-    return True
+    for iteration in range(max_iterations):
+        if best_score == 0:
+            break
 
+        neighborhood_size = max(10, 100 - 10 * (iteration // 10))
+        neighborhood = generate_neighborhood(current_solution, points, lines, target_size, neighborhood_size)
+        neighborhood = [sol for sol in neighborhood if sol not in tabu_list]
 
-# Function to generate an initial solution
-def initial_solution(points):
-    """
-    Generate an initial solution (random set of points).
+        if not neighborhood:
+            break
 
-    Args:
-        points (list): List of points.
+        best_neighbor = neighborhood[0]
+        best_neighbor_score = uncovered_lines_count(best_neighbor, lines)
 
-    Returns:
-        set: Random set of points.
-    """
-    return set(random.sample(points, Q + 1))
+        if best_neighbor_score < best_score:
+            best_solution = best_neighbor[:]
+            best_score = best_neighbor_score
 
+        current_solution = best_neighbor[:]
+        tabu_list.append(best_neighbor)
+        if len(tabu_list) > tabu_tenure:
+            tabu_list.pop(0)
 
-# Function to generate neighboring solutions
-def generate_neighbors(solution, points):
-    """
-    Generate neighboring solutions by applying small modifications to the current solution.
+        # Dynamic Tabu Tenure
+        tabu_tenure = max(5, int(tabu_tenure * 0.9)) if best_score == 0 else min(20, tabu_tenure + 1)
 
-    Args:
-        solution (set): Current solution (set of points).
-        points (list): List of points.
+        print(f"Iteration {iteration + 1}/{max_iterations}, best score: {best_score}")
 
-    Returns:
-        list: List of neighboring solutions.
-    """
-    neighbors = []
-    for point in points:
-        neighbor = solution.symmetric_difference({point})
-        if len(neighbor) <= Q + 1:
-            neighbors.append(neighbor)
-    return neighbors
+    print(f"Tabu search completed with best solution size {len(best_solution)} after {iteration + 1} iterations.")
+    return best_solution
 
-
-# Function to evaluate the quality of a solution (minimal blocking set)
-def evaluate_solution(solution, lines, q):
-    """
-    Evaluate the quality of a solution by checking if it forms a minimal blocking set.
-    :param solution: The solution to evaluate set of points
-    :param lines: List of lines
-    :return: bool: True if the solution forms a minimal blocking set, False otherwise.
-    """
-    # Check if solution forms a blocking set
-    if not is_blocking_set(solution, lines):
-        return False
-    # Check if solution is minimal
-    for point in solution:
-        if is_blocking_set(solution - {point}, lines):
-            return False
-    # Check if solution is a affine blocking set
-    if not is_affine_blocking_set(solution, q):
-        return False
-    return True
-
-def validate_affine_blocking_set(blocking_set, q):
-    """
-    Validate whether a given set of points forms an affine blocking set in PG(2, q).
-
-    Args:
-        blocking_set (set): Set of points to validate.
-        q (int): Field size.
-
-    Returns:
-        bool: True if the set forms an affine blocking set, False otherwise.
-    """
-    # Define all affine lines in the plane
-    affine_lines = []
-    for x in range(q):
-        for y in range(q):
-            if (x, y) not in blocking_set:
-                affine_lines.append([(x, y), (x, (x - y) % q)])
-
-    # check intersection with each affine line
-    for line in affine_lines:
-        intersection = set(line) & blocking_set
-        if not intersection: # If no intersection, its not an affine blocking set
-            return False
-
-    # check if it contains poinst in the line at in infinity
-    for point in blocking_set:
-        if point[1] == 0: # point lies on the line at infinity
-            return False
-
-    return True
-
-
-# Tabu search function
-def tabu_search(max_iterations):
-    """
-    Implement the Tabu Search algorithm to find both minimal blocking sets and affine blocking sets.
-
-    Args:
-        max_iterations (int): Maximum number of iterations.
-
-    Returns:
-        tuple: Best solution found (blocking set), set of all blocking sets, and minimum blocking set found.
-    """
-    points, lines = generate_PG_matrix(Q)
-    current_solution = initial_solution(points)
-    best_solution = current_solution
-    blocking_sets = set()
-    blocking_sets.add(tuple(best_solution))
-    min_blocking_set = tuple(best_solution.copy())
-
-    tabu_list = []  # List of tabu moves
-    tabu_tenure = 6  # Initial tabu tenure parameter
-    max_tabu_tenure = 10  # Maximum tabu tenure parameter
-    aspiration_threshold = len(best_solution) - 1  # Aspiration criteria threshold
+def explore_blocking_set_sizes(points, lines, min_size, max_size, max_time):
+    start_time = time.time()
+    blocking_set_counts = {size: 0 for size in range(min_size, max_size + 1)}
 
     iteration = 0
-    while iteration < max_iterations:
-        neighbors = generate_neighbors(current_solution, points)
-        best_neighbor = None
-        best_neighbor_eval = float('inf')
+    while time.time() - start_time < max_time:
+        target_size = random.randint(min_size, max_size)
+        print(f"Starting tabu search for target size {target_size}, iteration {iteration + 1}")
+        blocking_set = tabu_search_random_start(points, lines, target_size=target_size, tabu_tenure=10, max_iterations=100)
 
-        for neighbor in neighbors:
-            # Generate tabu move
-            tabu_move = (current_solution - neighbor, neighbor - current_solution)
-            if tabu_move not in tabu_list:
-                neighbor_eval = evaluate_solution(neighbor, lines, Q)
-                if neighbor_eval:
-                    if len(neighbor) < len(best_solution) or neighbor == best_solution:
-                        best_neighbor = neighbor
-                        best_neighbor_eval = len(neighbor)
-                    if neighbor not in blocking_sets:
-                        blocking_sets.add(neighbor)
-                        if len(neighbor) < len(min_blocking_set):
-                            min_blocking_set = neighbor
+        if is_valid_blocking_set(blocking_set, lines):
+            blocking_set_counts[len(blocking_set)] += 1
 
-        if best_neighbor is not None:
-            current_solution = best_neighbor
-            tabu_list.append(tabu_move)  # Add tabu move to the tabu list
-            if len(tabu_list) > tabu_tenure:
-                tabu_list.pop(0)  # Remove oldest tabu move from the tabu list
-            if len(best_neighbor) < len(best_solution):
-                best_solution = best_neighbor
-
-        # Update tabu tenure dynamically
-        if len(tabu_list) > aspiration_threshold:
-            tabu_tenure = min(tabu_tenure + 1, max_tabu_tenure)
-        elif tabu_tenure > 1:
-            tabu_tenure -= 1
-
+        print(f"Blocking set of size {len(blocking_set)} found for target size {target_size}.")
         iteration += 1
 
-    return best_solution, blocking_sets, min_blocking_set
+    return blocking_set_counts
 
-# Example usage:
-best_solution, blocking_sets, min_blocking_set = tabu_search(max_iterations=5000)
+if __name__ == "__main__":
+    points, lines = generate_PG_matrix(11)
+    min_size = 19
+    max_size = 24
+    max_time = 10  # in seconds
 
-print("Best Blocking Set found:", best_solution)
-print("All Blocking Sets found:", blocking_sets)
-print("Minimum Blocking Set found:", min_blocking_set)
+    blocking_set_counts = explore_blocking_set_sizes(points, lines, min_size, max_size, max_time)
 
-# Validate and print affine blocking sets
-affine_blocking_sets = []
-for block in blocking_sets:
-    if validate_affine_blocking_set(set(block), Q):
-        affine_blocking_sets.append(block)
-
-if affine_blocking_sets:
-    print("\nBest Affine Blocking Set found:", affine_blocking_sets[0])  # Display the first affine blocking set found
-    print("All Affine Blocking Sets found:", affine_blocking_sets)
-else:
-    print("\nNo Affine Blocking Sets found.")
+    for size, count in blocking_set_counts.items():
+        print(f"Size {size} blocking sets found: {count}")
