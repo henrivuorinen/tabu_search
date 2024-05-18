@@ -90,28 +90,35 @@ def tabu_search_random_start(points: List[Tuple[int, int, int]], lines: List[Lis
     return best_solution
 
 def explore_blocking_set_sizes(points, lines, min_size, max_size, max_time):
+    min_target_size = 16  # Minimum size of a blocking set for PG(2, 11)
+    max_target_size = 24  # Your upper range
+
     start_time = time.time()
     blocking_set_counts = {size: 0 for size in range(min_size, max_size + 1)}
 
     iteration = 0
     while time.time() - start_time < max_time:
-        target_size = random.randint(min_size, max_size)
+        target_size = random.randint(min_target_size, max_target_size)
         print(f"Starting tabu search for target size {target_size}, iteration {iteration + 1}")
+
         blocking_set = tabu_search_random_start(points, lines, target_size=target_size, tabu_tenure=10, max_iterations=100)
 
         if is_valid_blocking_set(blocking_set, lines):
-            blocking_set_counts[len(blocking_set)] += 1
+            if len(blocking_set) >= min_target_size:
+                blocking_set_counts[len(blocking_set)] += 1
+                print(f"Blocking set of size {len(blocking_set)} found for target size {target_size}.")
+            else:
+                print(f"Found solution of size {len(blocking_set)} is too small, skipping.")
 
-        print(f"Blocking set of size {len(blocking_set)} found for target size {target_size}.")
         iteration += 1
 
     return blocking_set_counts
 
 if __name__ == "__main__":
     points, lines = generate_PG_matrix(11)
-    min_size = 19
+    min_size = 12
     max_size = 24
-    max_time = 10  # in seconds
+    max_time = 60  # in seconds
 
     blocking_set_counts = explore_blocking_set_sizes(points, lines, min_size, max_size, max_time)
 
