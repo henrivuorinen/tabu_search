@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Set
 import random
 import time
 
@@ -95,6 +95,7 @@ def explore_blocking_set_sizes(points, lines, min_size, max_size, max_time):
 
     start_time = time.time()
     blocking_set_counts = {size: 0 for size in range(min_size, max_size + 1)}
+    found_blocking_sets: Set[Tuple[Tuple[int, int, int], ...]] = set()
 
     iteration = 0
     while time.time() - start_time < max_time:
@@ -104,11 +105,13 @@ def explore_blocking_set_sizes(points, lines, min_size, max_size, max_time):
         blocking_set = tabu_search_random_start(points, lines, target_size=target_size, tabu_tenure=10, max_iterations=100)
 
         if is_valid_blocking_set(blocking_set, lines):
-            if len(blocking_set) >= min_target_size:
+            blocking_set_tuple = tuple(sorted(blocking_set))
+            if len(blocking_set) >= min_target_size and blocking_set_tuple not in found_blocking_sets:
+                found_blocking_sets.add(blocking_set_tuple)
                 blocking_set_counts[len(blocking_set)] += 1
                 print(f"Blocking set of size {len(blocking_set)} found for target size {target_size}.")
             else:
-                print(f"Found solution of size {len(blocking_set)} is too small, skipping.")
+                print(f"Found solution of size {len(blocking_set)} is too small or already found, skipping.")
 
         iteration += 1
 

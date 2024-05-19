@@ -1,76 +1,136 @@
-# Minimal blocking sets of PG(2, q)
+# Tabu Search for blocking sets in Projective Geometry PG(2,11)
 
-The goal of this project is to construct an algorithm that can find minimal and minimul blocking
-sets of PG(2, q) matrix.
+## Overview
+This project implements Tabu Search algorithm to find unique blocking sets in the projective plane PG(2,11). The
+algorithm identifies blocking sets of various sizes and ensures that each blocking set is unique.
 
-This is achieved by using Tabu search algorithm. In the project two variations of the algorithm can
-be found, **tabu_search.py** and **tabu_search_improved.py**
+## Usage
+Clone the repository to your machine with ```git clone https://github.com/henrivuorinen/tabu_search/tree/master```. 
+then run the script with ```python tabu_search_improved.py```. 
 
-The **tabu_search.py** can be thought as a basic implementation of this method, and the improved version
-finds the minimal and minimul blocking sets of the PG(2, 11), that was given for the algorithm.
+### Output
+The script will output a number of unique blocking sets found for each size within the specific range.
 
-## The Projective Geometry over a finite field, PG
-
-This consept is denoted by PG(2, q), it consists of points and lines. In PG(2, q) each point corresponds to a line in 
-two dimentional vector space over the finite field _F_. And other way around, each line corresponds to a point in this
-vector space. PG(2, q) has `q^2 + q + 1` points and `q^2 + q + 1` lines.
-
-## Blockings sets
-
-### Difference between minimal and mimimum blocking sets.
-
-A blocking set is a subset of points that intersect every line in the geometrical space. A blocking set of PG(2, q) is
-a set of points such that every line contains at least one point from the blocking set.
-
-A minimal blocking set refers to a set of points in a projective geometrical space (or any other space) such
-that removing any point from the set would result in a configuration that no longer blocks all the lines in 
-the given space. Meaning that the minimal blocking set is the smallest set of points that still blocks all the
-lines in the geometrical space.
-
-A minimum blocking set refers to a minimal blocking set with the fewest possible number of points. It is the 
-smallest possible minimal blocking set in terms of cardinality, number of points. In a nutshell, minimum blocking
-set is the smallest minimal blocking set among all possible minimal blocking sets.
-
-
-## Example output
-
-When executing for example the **tabu_search_improved.py** with ```python tabu_search_improved.py``` you will see an
-output like this:
+## Functions
+### generate_PG_matrix()
+This function generates the points and lines of the projective plane PG(2,q).
 ```
-Best Blocking Set found: {(9, 10), (4, 4), (4, 0), (0, 4), (6, 1), (10, 7), (5, 1), (3, 0), (10, 0), (6, 10), (7, 2), (1, 6)}
-Minimal Blocking Sets found: {((9, 10), (4, 4), (4, 0), (0, 4), (6, 1), (10, 7), (5, 1), (3, 0), (10, 0), (6, 10), (7, 2), (1, 6))}
-Minimum Blocking Set found: ((9, 10), (4, 4), (4, 0), (0, 4), (6, 1), (10, 7), (5, 1), (3, 0), (10, 0), (6, 10), (7, 2), (1, 6))
-
+Parameters: q (int) - The order of the projective plane
+Returns: A tuple containing a list of points and list of lines.
 ```
 
-This displays the set of points that the Tabu Search algorithm considers to be the best blocking set. In this case, the set
-of points is represented as a tuple ```(x, y)``` indicating its coordinates. 
+### score_blocking_set()
+Scores blocking set based on how many lines it blocks
+```
+Parameters:
+    - blocking_set: (List[Tuple[int, int, int]]) - the blocking set.
+    - lines: (List(List[Tuple[int, int, int]]]) - The lines of the projective plane.
 
-In this case the output indicates that the Tabu Search algorithm found a single minimal blocking set, which is considered
-the best blocking set and the minimum blocking set found. 
+Returns: The score of the blocking set (int).
+```
 
-## Affine blocking set
+### uncovered_lines_count()
+Counts the number of uncovered lines by a blocking set.
 
-In PG an affine blocking set is a type of blocking set that intersect every line in the geometrical space except the
-line at infinity.
+```
+Parameters:
+    - blocking_set: (List[Tuple[int, int, int]]) - The blocking set
+    - lines: (List[List[Tuple[int, int, int]]]) - The lines of the projective plane.
+    
+Returns: The number of uncovered lines (int).
+```
 
-### affine planes
-An Affine plane is projective plane where a specific line is distinguished as the line at infinity. The line at infinity
-contains all the points at infinity, which are added to the plane to complete it.
+### is_valid_blocking_set()
+Checks if blocking set is valid.
+```
+Parameters:
+    - blocking_set: (List[Tuple[int, int, int]]) - The blocking set.
+    - lines: (List[List[Tuple[int, int, int]]])- The lines of the projective plane.
+    
+Returns: Boolean indicating whether the blocking set is valid.
+```
 
-### affine blocking sets
-in a affine plane, an affine blocking set is a subset of points that intersect every affine line in the plane. However,
-it does not intersect the line at infinity. If _B_ is an affine blocking set in an affine plane, then for every affine
-line _l_ in the plane that is not the line at infinity, there exsists at least one point in _B_ lying on _l_.
+### generate_initial_solution()
+Generates an initial solution for the Tabu Search.
 
-## The line at infinity
+```
+Parameters:
+    - points: (List[Tuple[int, int, int]]) - The points of the projective plane.
+    - lines: (List[List[Tuple[int, int, int]]]) - The lines of the projective plane.
+    - target_size: (int) - The target size for the initial solution.
+    
+Returns: A list representing the initial solution
+```
 
-The line at infinity is not a line, but collection of points. In homogenous coordinates, the line at infinity is 
-represented by the points [0:1:0] for two dimentional PG. Geometrically, the line at infinity represents the directon in
-which parallel lines converges.
+### generate_neighborhood()
+Generates a neighborhood of solutions for the Tabu Search
+```
+Parameters:
+    - solution: (List[Tuple[int, int, int]]) - The current solution.
+    - points: (List[Tuple[int, int, int]]) - The points of the projective plane.
+    - lines: (List[List[Tuple[int, int, int]]]) - The lines of the projective plane.
+    - target_size: (int) - The target size for solutions.
+    - sample_size: (int) - The number of solutions in the neighborhood.
+    
+Returns: A list of solutions representing the neighborhood.
+```
 
-## References
+### tabu_search_random_start(points:List[Tuple[int, int, int]], lines:List[List[Tuple[int, int, int]]], target_size:int,
+tabu_tenure:int=10, max_iteration:int=1000)
+Performs the tabu search to find a blocking set
+```
+Parameters:
+    - points: (List[Tuple[int, int, int]]) - points of the projective plane
+    - lines: (List[List[Tuple[int, int, int]]])- lines of the projective plane
+    - target_size: (int) - target size for the blocking set
+    - tabu_tenure: (int) - tabu tenure, the length of the tabu list.
+    - max_iteration: (int) - maximum number of iterations.
+    
+Returns: A list representing the best blocking set found.
+```
 
-Good things to read:
-https://arxiv.org/pdf/1203.1133
-https://msp.org/iig/2005/1-1/iig-v1-n1-p05-p.pdf
+### explore_blocking_set_size(points, lines, min_size, max_size, max_time)
+Explores blocking sets of various sizes within a specified time limit.
+```
+Parameters:
+    - points: (List[Tuple[int, int, int]]) - point of the projective plane.
+    - lines: (List[List[Tuple[int, int, int]]]) - lines of the projective plane.
+    - min_size : (int) - maximum size for blocking sets.
+    - min_size: (int) - minimum size for blocking ests.
+    - max_time: (int) - maximum time for the search in seconds.
+    
+Returns: A dictinonary with blocking set sizes as keys and the counts of unique blocking sets found as values.
+```
+
+## Parameters
+`min_size` : Minimum size of blocking sets to explore.
+`max_size` : Maximum size of blocking sets to explore.
+`max_time` : Maximum time (seconds) to run the search.
+
+## Output
+The script will output the number of unique blocking sets found for each size within the specific range.
+
+```
+Generated 133 points and 1320 lines.
+Starting tabu search for target size 23, iteration 1
+Generated initial solution of size 23.
+Generated neighborhood of size 100.
+...
+Blocking set of size 23 found for target size 23.
+Size 12 blocking sets found: 0
+Size 13 blocking sets found: 0
+Size 14 blocking sets found: 0
+Size 15 blocking sets found: 0
+Size 16 blocking sets found: 22
+Size 17 blocking sets found: 23
+Size 18 blocking sets found: 21
+Size 19 blocking sets found: 21
+Size 20 blocking sets found: 22
+Size 21 blocking sets found: 18
+Size 22 blocking sets found: 27
+Size 23 blocking sets found: 23
+Size 24 blocking sets found: 19
+```
+
+## License
+This project is licensed under the MIT License - see the License file for details
