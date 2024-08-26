@@ -27,8 +27,15 @@ def is_valid_blocking_set(blocking_set: Set[Tuple[int, int, int]], lines: List[L
 
 def cost_function(blocking_set: Set[Tuple[int, int, int]], lines: List[List[Tuple[int, int, int]]]) -> float:
     uncovered = uncovered_lines_count(blocking_set, lines)
-    size = len(blocking_set)
-    return uncovered + 0.1 * size
+    return uncovered  # Only penalize for uncovered lines
+
+def ensure_minimality(blocking_set: Set[Tuple[int, int, int]], lines: List[List[Tuple[int, int, int]]]) -> Set[Tuple[int, int, int]]:
+    for point in list(blocking_set):
+        temp_set = blocking_set.copy()
+        temp_set.remove(point)
+        if is_valid_blocking_set(temp_set, lines):
+            blocking_set.remove(point)
+    return blocking_set
 
 def generate_initial_solution(points: List[Tuple[int, int, int]], target_size: int) -> Set[Tuple[int, int, int]]:
     random.shuffle(points)
@@ -55,7 +62,7 @@ def generate_neighborhood(solution: Set[Tuple[int, int, int]], points: List[Tupl
 
 def tabu_search_random_start(points: List[Tuple[int, int, int]], lines: List[List[Tuple[int, int, int]]], target_size: int, tabu_tenure: int = 10, max_iterations: int = 100) -> Tuple[Set[Tuple[int, int, int]], bool]:
     current_solution = generate_initial_solution(points, target_size)
-    best_solution = current_solution.copy()
+    best_solution = ensure_minimality(current_solution.copy(), lines)
     best_cost = cost_function(best_solution, lines)
     tabu_set = set()
     no_improvement_iterations = 0
@@ -71,7 +78,7 @@ def tabu_search_random_start(points: List[Tuple[int, int, int]], lines: List[Lis
         if not neighborhood:
             break
 
-        best_neighbor = neighborhood[0]
+        best_neighbor = ensure_minimality(neighborhood[0], lines)
         best_neighbor_cost = cost_function(best_neighbor, lines)
 
         if best_neighbor_cost < best_cost:
@@ -115,6 +122,7 @@ def explore_blocking_set_sizes(points, lines, min_size, max_size, max_time):
                                                        max_iterations=100)
 
         if found:
+            blocking_set = ensure_minimality(blocking_set, lines)  # Ensure minimality before storing
             blocking_set_tuple = tuple(sorted(blocking_set))
             if len(blocking_set) >= min_target_size and blocking_set_tuple not in found_blocking_sets:
                 found_blocking_sets.add(blocking_set_tuple)
@@ -124,8 +132,7 @@ def explore_blocking_set_sizes(points, lines, min_size, max_size, max_time):
                     blocking_set_counts[len(blocking_set)] = 0
 
                 blocking_set_counts[len(blocking_set)] += 1
-                print(
-                    f"Blocking set of size {len(blocking_set)} found for target size {target_size}. Total found: {blocking_set_counts[len(blocking_set)]}")
+                print(f"Blocking set of size {len(blocking_set)} found for target size {target_size}. Total found: {blocking_set_counts[len(blocking_set)]}")
             else:
                 if blocking_set_tuple in found_blocking_sets:
                     print(f"Duplicate blocking set of size {len(blocking_set)} found and skipped.")
@@ -136,12 +143,11 @@ def explore_blocking_set_sizes(points, lines, min_size, max_size, max_time):
 
     return blocking_set_counts
 
-
 if __name__ == "__main__":
     points, lines = generate_PG_matrix(11)
     min_size = 16
     max_size = 36
-    max_time = 3600  # Run for 1 hour
+    max_time = 3600  # Run for 3 hours
 
     blocking_set_counts = explore_blocking_set_sizes(points, lines, min_size, max_size, max_time)
 
